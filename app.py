@@ -19,6 +19,10 @@ def clean_dataframe(df):
     df = df.loc[:, ~df.columns.str.contains("^Unnamed")]  # Remove unnamed columns
     return df
 
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({"message": "Welcome to Triveni Backend! Use /upload to process Excel files."})
+
 @app.route("/upload", methods=["POST"])
 def upload_files():
     try:
@@ -29,8 +33,6 @@ def upload_files():
         excel2 = request.files["excel2"]
         
         excel1_path = os.path.join(UPLOAD_FOLDER, "excel1.xlsx")
-        
-        # Get original Excel2 filename (without extension)
         excel2_filename = os.path.splitext(excel2.filename)[0]  # Extract filename without extension
         excel2_path = os.path.join(UPLOAD_FOLDER, excel2.filename)
         
@@ -53,7 +55,6 @@ def upload_files():
             print("❌ Error reading Excel files:", e)
             return jsonify({"error": f"Error reading Excel files: {str(e)}"}), 500
         
-        # Ensure columns are in lowercase for case-insensitive matching
         df1.columns = df1.columns.str.lower()
         df2.columns = df2.columns.str.lower()
         
@@ -65,15 +66,12 @@ def upload_files():
         merge_columns = ["item", "description", "materials"]
         df_merged = df2.merge(df1, on=merge_columns, how="left", suffixes=("", "_filled"))
         
-        # Update logic
         df_merged["c/kg"] = df_merged["c/kg"].combine_first(df_merged.get("c/kg_filled"))
         df_merged.loc[df_merged["item"].str.lower() == "pipe", "rate"] = ""
         df_merged.loc[df_merged["item"].str.lower() != "pipe", "rate"] = df_merged["rate"].combine_first(df_merged.get("rate_filled"))
         
-        # Drop extra columns
         df_merged = df_merged[df2.columns]
 
-        # Save processed file with original name + "_filtered.xlsx"
         processed_file_name = f"{excel2_filename}_filtered.xlsx"
         processed_file_path = os.path.join(DOWNLOAD_FOLDER, processed_file_name)
         df_merged.to_excel(processed_file_path, index=False)
@@ -102,5 +100,7 @@ def download_file(filename):
         return jsonify({"error": f"Error downloading file: {str(e)}"}), 500
 
 if __name__ == "__main__":
-    print("🚀 Flask server is running on http://localhost:8000")
-    app.run(debug=True, port=8000)
+    import os
+    port = int(os.environ.get("PORT", 10000))
+    print(f"🚀 Flask server is running on http://0.0.0.0:{port}")
+    app.run(debug=False, host="0.0.0.0", port=port)
